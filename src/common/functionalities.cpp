@@ -95,8 +95,6 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
     value = C_CONST;
   }
 
-  uint8_t* res_shares;
-
 
   if (context.role == CLIENT) {
     std::vector<std::vector<uint64_t>> opprf_values(context.nbins, std::vector<uint64_t>(context.ffuns));
@@ -105,13 +103,15 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
 
     //Hashing Phase
     const auto hashing_start_time = std::chrono::system_clock::now();
-    ENCRYPTO::CuckooTable cuckoo_table(static_cast<std::size_t>(context.nbins));
+    ENCRYPTO::CuckooTable cuckoo_table = *(new ENCRYPTO::CuckooTable(static_cast<std::size_t>(context.nbins)));
     cuckoo_table.SetNumOfHashFunctions(context.nfuns);
     cuckoo_table.Insert(inputs);
+    std::cout << sizeof(inputs) << std::endl;
     cuckoo_table.MapElements();
 
+
     if (cuckoo_table.GetStashSize() > 0u) {
-      std::cerr << "[Error] Stash of size " << cuckoo_table.GetStashSize() << " occured\n";
+      std::cerr << "[Error] 2Stash of size " << cuckoo_table.GetStashSize() << " occured\n";
     }
 
     auto cuckoo_table_v = cuckoo_table.AsRawVector();
@@ -160,7 +160,7 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
     const duration_millis hint_duration = filter_end_time - filter_start_time;
     context.timings.hint_computation = hint_duration.count();
 
-    res_shares = new uint8_t[num_cmps];
+    uint8_t* res_shares;
     for(int i=0; i<pad; i++) {
         content_of_bins[3*context.nbins+i]=value;
     }
@@ -251,7 +251,7 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
       //Send table
       sock->Send(table_opprf.data(), context.nbins * ts* sizeof(uint64_t));
 
-      res_shares = new uint8_t[num_cmps];
+      uint8_t* res_shares = new uint8_t[num_cmps];
       for(int i=0; i<pad; i++) {
           content_of_bins[context.nbins+i]=value;
       }
@@ -265,6 +265,7 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
     const auto clock_time_total_end = std::chrono::system_clock::now();
     const duration_millis total_duration = clock_time_total_end - clock_time_total_start;
     context.timings.total = total_duration.count();
+
 
   } else { //Server
     content_of_bins.reserve(num_cmps);
@@ -307,11 +308,13 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
       }
     }
 
-    ENCRYPTO::CuckooTable cuckoo_table(static_cast<std::size_t>(context.fbins));
+    ENCRYPTO::CuckooTable cuckoo_table = *(new ENCRYPTO::CuckooTable(static_cast<std::size_t>(context.fbins)));
     cuckoo_table.SetNumOfHashFunctions(context.ffuns);
     cuckoo_table.Insert(filterinputs);
     cuckoo_table.MapElements();
     //cuckoo_table.Print();
+
+    std::cout << sizeof(filterinputs) << std::endl;
 
     if (cuckoo_table.GetStashSize() > 0u) {
       std::cerr << "[Error] Stash of size " << cuckoo_table.GetStashSize() << " occured\n";
@@ -348,7 +351,7 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
     const duration_millis hint_trans = ftrans_end_time - ftrans_start_time;
     context.timings.hint_transmission = hint_trans.count();
 
-    res_shares = new uint8_t[num_cmps];
+    uint8_t* res_shares;
     for(int i=0; i<pad; i++) {
       content_of_bins[context.nbins+i]=value;
     }
@@ -396,25 +399,17 @@ void run_circuit_psi(const std::vector<std::uint64_t> &inputs, PsiAnalyticsConte
       }
 
       //perform_batch_equality(content_of_bins.data(), compare, res_shares);
-      res_shares = new uint8_t[num_cmps];
+      uint8_t* res_shares = new uint8_t[num_cmps];
       perform_equality(actual_contents_of_bins.data(), party, context.bitlen, b, num_cmps, context.address, context.port, res_shares, ioArr, otpackArr);
-      }
+    }
     const auto clock_time_cir_end = std::chrono::system_clock::now();
     const duration_millis cir_duration = clock_time_cir_end - clock_time_cir_start;
     context.timings.psm_time = cir_duration.count();
     const auto clock_time_total_end = std::chrono::system_clock::now();
     const duration_millis total_duration = clock_time_total_end - clock_time_total_start;
     context.timings.total = total_duration.count();
-  }
 
-  //Writing resultant shares to file
-  cout<<"Writing resultant shares to File ..."<<endl;
-  ofstream res_file;
-  res_file.open("res_share_P" + to_string(context.role) + ".dat");
-  for(int i=0; i<context.nbins; i++){
-    res_file << res_shares[i] << endl;
   }
-  res_file.close();
 }
 
 std::unique_ptr<CSocket> EstablishConnection(const std::string &address, uint16_t port,
@@ -507,23 +502,23 @@ void PrintCommunication(PsiAnalyticsContext &context) {
   double sentinMB, recvinMB;
   sentinMB = context.sentBytesOPRF/((1.0*(1ULL<<20)));
   recvinMB = context.recvBytesOPRF/((1.0*(1ULL<<20)));
-  std::cout<<context.role << ": Sent Data OPRF (MB): "<<sentinMB<<std::endl;
-  std::cout<<context.role << ": Received Data OPRF (MB): "<<recvinMB<<std::endl;
+  std::cout<<context.role << ": Sent Data OPRF (B): "<<context.sentBytesOPRF<<std::endl;
+  std::cout<<context.role << ": Received Data OPRF (B): "<<context.recvBytesOPRF<<std::endl;
 
   sentinMB = context.sentBytesHint/((1.0*(1ULL<<20)));
   recvinMB = context.recvBytesHint/((1.0*(1ULL<<20)));
-  std::cout<<context.role << ": Sent Data Hint (MB): "<<sentinMB<<std::endl;
-  std::cout<<context.role << ": Received Data Hint (MB): "<<recvinMB<<std::endl;
+  std::cout<<context.role << ": Sent Data Hint (B): "<<context.sentBytesHint<<std::endl;
+  std::cout<<context.role << ": Received Data Hint (B): "<<context.recvBytesHint<<std::endl;
 
   sentinMB = context.sentBytesSCI/((1.0*(1ULL<<20)));
   recvinMB = context.recvBytesSCI/((1.0*(1ULL<<20)));
-  std::cout<<context.role << ": Sent Data CryptFlow2 (MB): "<<sentinMB<<std::endl;
-  std::cout<<context.role << ": Received Data CryptFlow2 (MB): "<<recvinMB<<std::endl;
+  std::cout<<context.role << ": Sent Data CryptFlow2 (B): "<<context.sentBytesSCI<<std::endl;
+  std::cout<<context.role << ": Received Data CryptFlow2 (B): "<<context.recvBytesSCI<<std::endl;
 
   sentinMB = context.sentBytes/((1.0*(1ULL<<20)));
   recvinMB = context.recvBytes/((1.0*(1ULL<<20)));
-  std::cout<<context.role << ": Total Sent Data (MB): "<<sentinMB<<std::endl;
-  std::cout<<context.role << ": Total Received Data (MB): "<<recvinMB<<std::endl;
+  std::cout<<context.role << ": Total Sent Data (B): "<<context.sentBytesSCI<<std::endl;
+  std::cout<<context.role << ": Total Received Data (B): "<<context.recvBytes<<std::endl;
 }
 
 }

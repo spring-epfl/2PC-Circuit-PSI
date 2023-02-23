@@ -56,7 +56,8 @@ auto read_test_options(int32_t argcp, char **argvp) {
   ("radix,m",    po::value<decltype(context.radix)>(&context.radix)->default_value(5u),                             "Radix in PSM Protocol")
   ("functions,f",    po::value<decltype(context.nfuns)>(&context.nfuns)->default_value(3u),                         "Number of hash functions in hash tables")
   ("hint-functions,F",    po::value<decltype(context.ffuns)>(&context.ffuns)->default_value(3u),                         "Number of hash functions in hint hash tables")
-  ("psm-type,y",         po::value<std::string>(&type)->default_value("PSM1"),                                          "PSM type {PSM1, PSM2}");
+  ("psm-type,y",         po::value<std::string>(&type)->default_value("PSM1"),                                          "PSM type {PSM1, PSM2}")
+  ("ndocs,d",         po::value<decltype(context.ndocs)>(&context.ndocs)->default_value(1u),                            "Number of documents");
   // clang-format on
 
   po::variables_map vm;
@@ -98,6 +99,8 @@ int main(int argc, char **argv) {
   auto gen_bitlen = static_cast<std::size_t>(std::ceil(std::log2(context.neles))) + 3;
   std::vector<uint64_t> inputs;
 
+  //for(int j=0; j<context.ndocs; ++j){  
+
   if(context.role == CLIENT) {
     for(int i=0;i<context.neles;i++){
       inputs.push_back(1000*i);
@@ -137,6 +140,7 @@ int main(int argc, char **argv) {
   PrintCommunication(context);
 
   //End Connection
+
   sock->Close();
   chl.close();
   ep->stop();
@@ -145,5 +149,6 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 2; i++) {
       delete ioArr[i];
   }
+  //}
   return EXIT_SUCCESS;
 }

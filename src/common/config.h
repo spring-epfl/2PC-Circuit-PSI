@@ -33,6 +33,7 @@ struct PsiAnalyticsContext {
   uint32_t role;
   uint64_t bitlen;
   uint64_t neles;
+  uint64_t ndocs;
   uint64_t nbins;
   uint64_t nfuns;  // number of hash functions in the hash table
   uint64_t radix;
